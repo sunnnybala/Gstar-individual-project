@@ -62,11 +62,22 @@ def load_models_and_tokenizer():
 
     policy = AutoModelForCausalLMWithValueHead.from_pretrained(
         load_id,
-        torch_dtype=dtype,
+        dtype=dtype,
         low_cpu_mem_usage=True,
         quantization_config=quant,
         device_map="auto",
     )
+
+    # If we loaded from HF (not local), save a copy into local cache BEFORE applying LoRA
+    if not os.path.isdir(local_path):
+        try:
+            os.makedirs(local_path, exist_ok=True)
+            print(f"[Cache] Saving model/tokenizer locally to: {local_path}")
+            tokenizer.save_pretrained(local_path)
+            # Save the base model attached to the value-head wrapper
+            policy.pretrained_model.save_pretrained(local_path)
+        except Exception as e:
+            print(f"[Cache] Skipped saving local cache due to: {e}")
 
     # Apply LoRA to the policy base model (value head is separate)
     lora_cfg = LoraConfig(
@@ -78,27 +89,19 @@ def load_models_and_tokenizer():
         task_type="CAUSAL_LM",
     )
     policy_pretrained = policy.pretrained_model
-    policy_pretrained = get_peft_model(policy_pretrained, lora_cfg)
-    policy.pretrained_model = policy_pretrained
+    if hasattr(policy_pretrained, "peft_config"):
+        print("[Init] Detected existing PEFT adapters; skipping duplicate LoRA injection.")
+    else:
+        policy_pretrained = get_peft_model(policy_pretrained, lora_cfg)
+        policy.pretrained_model = policy_pretrained
 
     # Reference model for PPO KL (keep on CPU to save VRAM). Use plain CausalLM (no value head).
     ref_model = AutoModelForCausalLM.from_pretrained(
         load_id,
-        torch_dtype=dtype,
+        dtype=dtype,
         low_cpu_mem_usage=True,
         device_map={"": "cpu"},
     )
-
-    # If we loaded from HF, save a copy into local cache for next runs
-    if not os.path.isdir(local_path):
-        try:
-            os.makedirs(local_path, exist_ok=True)
-            print(f"[Cache] Saving model/tokenizer locally to: {local_path}")
-            # Save value-head-wrapped policy's base model and tokenizer
-            tokenizer.save_pretrained(local_path)
-            policy.pretrained_model.save_pretrained(local_path)
-        except Exception as e:
-            print(f"[Cache] Skipped saving local cache due to: {e}")
 
     return policy, ref_model, tokenizer
 
@@ -217,17 +220,33 @@ def main():
     print("[Init] Models loaded. Policy on device:", policy.pretrained_model.device)
     print("[Init] Reference model on CPU for KL computation.")
 
-    # PPO trainer
-    ppo_config = PPOConfig(
-        learning_rate=cfg.learning_rate,
-        batch_size=cfg.batch_size,
-        mini_batch_size=1,
-        gradient_accumulation_steps=1,
-        ppo_epochs=cfg.ppo_epochs,
-        target_kl=cfg.target_kl,
-        cliprange=cfg.cliprange,
-        log_with=None,
-    )
+    # PPO trainer (robust across TRL versions)
+    ppo_config = PPOConfig()
+    # Set known fields if they exist in this TRL version
+    if hasattr(ppo_config, "learning_rate"):
+        ppo_config.learning_rate = cfg.learning_rate
+    if hasattr(ppo_config, "batch_size"):
+        ppo_config.batch_size = cfg.batch_size
+    if hasattr(ppo_config, "mini_batch_size"):
+        ppo_config.mini_batch_size = 1
+    if hasattr(ppo_config, "gradient_accumulation_steps"):
+        ppo_config.gradient_accumulation_steps = 1
+    # ppo epochs can be named differently across versions
+    if hasattr(ppo_config, "ppo_epochs"):
+        ppo_config.ppo_epochs = cfg.ppo_epochs
+    elif hasattr(ppo_config, "num_ppo_epochs"):
+        ppo_config.num_ppo_epochs = cfg.ppo_epochs
+    # target KL / cliprange naming can differ
+    if hasattr(ppo_config, "target_kl"):
+        ppo_config.target_kl = cfg.target_kl
+    elif hasattr(ppo_config, "kl_target"):
+        ppo_config.kl_target = cfg.target_kl
+    if hasattr(ppo_config, "cliprange"):
+        ppo_config.cliprange = cfg.cliprange
+    elif hasattr(ppo_config, "cliprange_value"):
+        ppo_config.cliprange_value = cfg.cliprange
+    if hasattr(ppo_config, "log_with"):
+        ppo_config.log_with = None
 
     ppo_trainer = PPOTrainer(
         config=ppo_config,
