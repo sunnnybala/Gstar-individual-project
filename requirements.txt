@@ -1,0 +1,12 @@
+# torch==2.3.1
+transformers==4.44.2
+accelerate==0.33.0
+trl==0.9.6
+peft==0.11.1
+bitsandbytes==0.43.3
+datasets==2.20.0
+shortuuid==1.0.13
+loguru==0.7.2
+sentencepiece==0.2.0
+protobuf==5.27.3
+
