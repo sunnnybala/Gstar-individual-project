@@ -88,6 +88,7 @@ def load_models_and_tokenizer():
         low_cpu_mem_usage=True,
         device_map={"": "cpu"},
     )
+    ref_model = None
 
     # If we loaded from HF, save a copy into local cache for next runs
     if not os.path.isdir(local_path):
