@@ -219,7 +219,6 @@ def main():
 
     # PPO trainer
     ppo_config = PPOConfig(
-        model_name=cfg.model_name,
         learning_rate=cfg.learning_rate,
         batch_size=cfg.batch_size,
         mini_batch_size=1,
