@@ -7,7 +7,7 @@ class TrainConfig:
     model_name: str = "mistralai/Mistral-7B-Instruct-v0.3"
 
     # Quantization / memory
-    load_in_4bit: bool = False
+    load_in_4bit: bool = True
     bnb_4bit_quant_type: str = "nf4"
     bnb_4bit_use_double_quant: bool = True
     compute_dtype: str = "bfloat16"  # or "float16" if GPU lacks bf16
