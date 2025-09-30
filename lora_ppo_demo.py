@@ -248,12 +248,40 @@ def main():
     if hasattr(ppo_config, "log_with"):
         ppo_config.log_with = None
 
-    ppo_trainer = PPOTrainer(
-        config=ppo_config,
-        model=policy,
-        ref_model=ref_model,
-        tokenizer=tokenizer,
-    )
+    # Build PPOTrainer across TRL versions (positional/keyword API differences)
+    try:
+        # Newer/older TRL (most common): first positional is config
+        ppo_trainer = PPOTrainer(ppo_config, policy, ref_model, tokenizer)
+    except TypeError:
+        try:
+            # Alternative ordering seen in some versions
+            ppo_trainer = PPOTrainer(policy, ref_model, tokenizer, ppo_config)
+        except TypeError:
+            # Minimal constructor; set config fields afterwards if available
+            ppo_trainer = PPOTrainer(policy, ref_model, tokenizer)
+            if hasattr(ppo_trainer, "config"):
+                cfg_obj = ppo_trainer.config
+                for name, val in [
+                    ("learning_rate", cfg.learning_rate),
+                    ("batch_size", cfg.batch_size),
+                    ("mini_batch_size", 1),
+                    ("gradient_accumulation_steps", 1),
+                ]:
+                    if hasattr(cfg_obj, name):
+                        setattr(cfg_obj, name, val)
+                # epochs / kl / cliprange variants
+                if hasattr(cfg_obj, "ppo_epochs"):
+                    cfg_obj.ppo_epochs = cfg.ppo_epochs
+                elif hasattr(cfg_obj, "num_ppo_epochs"):
+                    cfg_obj.num_ppo_epochs = cfg.ppo_epochs
+                if hasattr(cfg_obj, "target_kl"):
+                    cfg_obj.target_kl = cfg.target_kl
+                elif hasattr(cfg_obj, "kl_target"):
+                    cfg_obj.kl_target = cfg.target_kl
+                if hasattr(cfg_obj, "cliprange"):
+                    cfg_obj.cliprange = cfg.cliprange
+                elif hasattr(cfg_obj, "cliprange_value"):
+                    cfg_obj.cliprange_value = cfg.cliprange
 
     logger.info("Tutor loop ready. Type Ctrl+C to exit.")
     print("[Ready] Tutor loop started. Press Ctrl+C to exit.")
