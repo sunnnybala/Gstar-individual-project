@@ -317,7 +317,7 @@ def main():
                     pred = parse_style(out2)
                 print(f"[Done] Style output: {out!r} -> pred={pred}")
                 truth = cfg.style_gt[user]
-                reward = 1.0 if pred == truth else -0.3
+                reward = 1.0 if pred == truth else -0.5
                 style_counts[user]["total"] += 1
                 if reward > 0:
                     style_counts[user]["correct"] += 1
@@ -327,7 +327,7 @@ def main():
                 a_ids = tokenizer(out or "{}", return_tensors="pt", truncation=True, max_length=cfg.max_new_tokens).input_ids.to(ppo_trainer.accelerator.device)
                 score = torch.tensor(reward, dtype=torch.float32, device=ppo_trainer.accelerator.device)
                 stats = ppo_trainer.step([q_ids[0]], [a_ids[0]], [score])
-                print(f"[Feedback] user={user}, pred={pred}, truth={truth}, reward={reward:+.0f}")
+                print(f"[Feedback] user={user}, pred={pred}, truth={truth}, reward={reward}")
 
                 step += 1
                 # Compute accuracies and append CSV row every step
@@ -409,8 +409,8 @@ def main():
             if user_choice not in ["A", "B", "C", "D"]:
                 user_choice = "A"
 
-            reward = 1.0 if user_choice == correct_option else -1.0
-            print(f"[Feedback] User chose {user_choice}. Correct was hidden. Reward: {reward:+.0f}")
+            reward = 1.0 if user_choice == correct_option else -0.3
+            print(f"[Feedback] User chose {user_choice}. Correct was hidden. Reward: {reward}")
 
             # PPO step uses the original (Q, A) pair and scalar reward
             # Prepare tensors
