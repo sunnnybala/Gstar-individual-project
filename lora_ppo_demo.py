@@ -270,6 +270,12 @@ def main():
     quiz_store: Dict[str, str] = {}  # quiz_id -> correct_option (kept off-model)
     # Style-probe counters
     style_counts = {u: {"correct": 0, "total": 0} for u in cfg.style_users}
+    # Prepare CSV for style probe
+    csv_path = os.path.join(cfg.log_dir, "style_probe.csv")
+    os.makedirs(cfg.log_dir, exist_ok=True)
+    if not os.path.isfile(csv_path):
+        with open(csv_path, "w", encoding="utf-8") as f:
+            f.write("step,user,pred,truth,reward,acc_john,acc_ram,acc_lily,acc_overall\n")
 
     try:
         while True:
@@ -324,13 +330,17 @@ def main():
                 print(f"[Feedback] user={user}, pred={pred}, truth={truth}, reward={reward:+.0f}")
 
                 step += 1
+                # Compute accuracies and append CSV row every step
+                accs = {u: (c["correct"] / c["total"] if c["total"] else 0.0) for u, c in style_counts.items()}
+                total_corr = sum(c["correct"] for c in style_counts.values())
+                total_cnt = sum(c["total"] for c in style_counts.values())
+                acc_overall = (total_corr / total_cnt) if total_cnt else 0.0
                 if step % cfg.style_eval_every_n_steps == 0:
-                    accs = {u: (c["correct"] / c["total"] if c["total"] else 0.0) for u, c in style_counts.items()}
-                    print(f"[Eval] Style accuracies: {accs}")
-                    # Append CSV row
-                    os.makedirs(cfg.log_dir, exist_ok=True)
-                    with open(os.path.join(cfg.log_dir, "style_probe.csv"), "a", encoding="utf-8") as f:
-                        f.write(f"{step},{user},{pred},{truth},{reward}\n")
+                    print(f"[Eval] Style accuracies: {accs} | overall={acc_overall:.3f}")
+                with open(csv_path, "a", encoding="utf-8") as f:
+                    f.write(
+                        f"{step},{user},{pred},{truth},{reward},{accs.get('John',0):.3f},{accs.get('Ram',0):.3f},{accs.get('Lily',0):.3f},{acc_overall:.3f}\n"
+                    )
                 # Continue next iteration (skip tutor branch)
                 continue
 

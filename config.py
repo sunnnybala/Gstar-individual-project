@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -67,7 +67,7 @@ class TrainConfig:
     # Style-probe experiment settings
     style_labels: tuple = ("story", "example", "facts")
     style_users: tuple = ("John", "Ram", "Lily")
-    style_gt: dict = {"John": "story", "Ram": "example", "Lily": "facts"}
+    style_gt: dict = field(default_factory=lambda: {"John": "story", "Ram": "example", "Lily": "facts"})
     style_eval_every_n_steps: int = 20
 
 
