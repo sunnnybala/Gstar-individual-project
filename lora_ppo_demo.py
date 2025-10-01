@@ -142,7 +142,8 @@ def format_style_prompt(user_name: str, question: str) -> str:
     return (
         "You are a tutor. Choose the best teaching style out of style1, style2, style3,for the user, dont choose any other style, and denying to choose one isn't a option.\n"
         "Return ONLY valid JSON with EXACTLY this field and nothing else: "
-        '{"style": "style1|style2|style3"}.\n'
+        '{"style": "style1"} OR {"style": "style2"} OR {"style": "style3"}\n'
+        "Valid values are ONLY: 'style1', 'style2', 'style3'. Nothing else.\n"
         f"User name: {user_name}. Question: {question}\nJSON:"
     )
 
@@ -317,7 +318,7 @@ def main():
                     pred = parse_style(out2)
                 print(f"[Done] Style output: {out!r} -> pred={pred}")
                 truth = cfg.style_gt[user]
-                reward = 1.0 if pred == truth else -0.55
+                reward = 1.0 if pred == truth else -0.62
                 style_counts[user]["total"] += 1
                 if reward > 0:
                     style_counts[user]["correct"] += 1
