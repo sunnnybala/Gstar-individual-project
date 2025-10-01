@@ -317,7 +317,7 @@ def main():
                     pred = parse_style(out2)
                 print(f"[Done] Style output: {out!r} -> pred={pred}")
                 truth = cfg.style_gt[user]
-                reward = 1.0 if pred == truth else -0.5
+                reward = 1.0 if pred == truth else -0.7
                 style_counts[user]["total"] += 1
                 if reward > 0:
                     style_counts[user]["correct"] += 1
