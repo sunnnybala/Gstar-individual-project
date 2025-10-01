@@ -140,7 +140,7 @@ def _strict_quiz_prompt(question: str) -> str:
 
 def format_style_prompt(user_name: str, question: str) -> str:
     return (
-        "You are a tutor. Choose the best teaching style for the user.\n"
+        "You are a tutor. Choose the best teaching style out of style1, style2, style3,for the user, dont choose any other style.\n"
         "Return ONLY valid JSON with EXACTLY this field and nothing else: "
         '{"style": "style1|style2|style3"}.\n'
         f"User name: {user_name}. Question: {question}\nJSON:"
