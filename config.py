@@ -41,6 +41,35 @@ class TrainConfig:
     # Local model cache base directory (models will be stored under a subfolder per repo id)
     models_cache_dir: str = "./models_cache"
 
+    # Experiment control
+    experiment_mode: str = "style_probe"  # values: "tutor" | "style_probe"
+    auto_run: bool = True  # if True, run without CLI input
+
+    # Auto questions (used when auto_run=True or in style_probe)
+    auto_questions: tuple = (
+        "Explain Newton's third law simply.",
+        "What is photosynthesis?", 
+        "Describe the water cycle.",
+        "What causes seasons on Earth?",
+        "Define inertia with a short explanation.",
+        "What is energy conservation?",
+        "Difference between speed and velocity?",
+        "Explain gravity to a child.",
+        "What is an atom?",
+        "How do vaccines work?",
+        "What is probability in simple terms?",
+        "Explain fractions with a quick note.",
+        "What is a hypothesis?",
+        "Why is the sky blue?",
+        "What causes tides?",
+    )
+
+    # Style-probe experiment settings
+    style_labels: tuple = ("story", "example", "facts")
+    style_users: tuple = ("John", "Ram", "Lily")
+    style_gt: dict = {"John": "story", "Ram": "example", "Lily": "facts"}
+    style_eval_every_n_steps: int = 20
+
 
 cfg = TrainConfig()
 

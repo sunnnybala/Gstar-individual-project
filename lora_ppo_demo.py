@@ -5,6 +5,7 @@ import time
 import uuid
 import re
 from typing import Dict, Any
+import random
 
 import torch
 from loguru import logger
@@ -137,6 +138,31 @@ def _strict_quiz_prompt(question: str) -> str:
     )
 
 
+def format_style_prompt(user_name: str, question: str) -> str:
+    return (
+        "You are a tutor. Choose the best teaching style for the user.\n"
+        "Return ONLY valid JSON with EXACTLY this field and nothing else: "
+        '{"style": "story|example|facts"}.\n'
+        f"User name: {user_name}. Question: {question}\nJSON:"
+    )
+
+
+def parse_style(json_str: str) -> str | None:
+    start = json_str.find("{")
+    end = json_str.rfind("}")
+    if start == -1 or end == -1:
+        return None
+    try:
+        obj = json.loads(json_str[start : end + 1])
+    except Exception:
+        return None
+    val = str(obj.get("style", "")).strip().lower()
+    if val in ("story", "stories"): return "story"
+    if val in ("example", "examples"): return "example"
+    if val in ("fact", "facts", "factual"): return "facts"
+    return None
+
+
 @torch.inference_mode()
 def generate_text(model, tokenizer, prompt: str, temperature: float, top_p: float, max_new_tokens: int) -> str:
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=cfg.max_prompt_tokens)
@@ -238,18 +264,77 @@ def main():
         tokenizer=tokenizer,
     )
 
-    logger.info("Tutor loop ready. Type Ctrl+C to exit.")
-    print("[Ready] Tutor loop started. Press Ctrl+C to exit.")
+    logger.info("Loop ready. Type Ctrl+C to exit if interactive.")
+    print("[Ready] Loop started.")
     step = 0
     quiz_store: Dict[str, str] = {}  # quiz_id -> correct_option (kept off-model)
+    # Style-probe counters
+    style_counts = {u: {"correct": 0, "total": 0} for u in cfg.style_users}
 
     try:
         while True:
-            q = input("\nEnter your question (Q): ").strip()
-            if not q:
+            if cfg.experiment_mode == "style_probe":
+                # Automatic loop: pick user and question
+                user = random.choice(cfg.style_users)
+                q = random.choice(cfg.auto_questions)
+            elif cfg.auto_run:
+                q = random.choice(cfg.auto_questions)
+            else:
+                q = input("\nEnter your question (Q): ").strip()
+                if not q:
+                    continue
+
+            # Experiment branch: style_probe
+            if cfg.experiment_mode == "style_probe":
+                prompt = format_style_prompt(user, q)
+                print(f"\n[Step] Style selection for {user}...")
+                t0 = time.time()
+                out = generate_text(
+                    ppo_trainer.model.pretrained_model,
+                    tokenizer,
+                    prompt,
+                    temperature=0.2,
+                    top_p=cfg.top_p,
+                    max_new_tokens=16,
+                )
+                pred = parse_style(out)
+                if pred is None:
+                    # Retry stricter once
+                    out2 = generate_text(
+                        ppo_trainer.model.pretrained_model,
+                        tokenizer,
+                        prompt + "\nReturn only JSON.",
+                        temperature=0.1,
+                        top_p=0.9,
+                        max_new_tokens=16,
+                    )
+                    pred = parse_style(out2)
+                print(f"[Done] Style output: {out!r} -> pred={pred}")
+                truth = cfg.style_gt[user]
+                reward = 1.0 if pred == truth else -1.0
+                style_counts[user]["total"] += 1
+                if reward > 0:
+                    style_counts[user]["correct"] += 1
+
+                # PPO update
+                q_ids = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=cfg.max_prompt_tokens).input_ids.to(ppo_trainer.accelerator.device)
+                a_ids = tokenizer(out or "{}", return_tensors="pt", truncation=True, max_length=cfg.max_new_tokens).input_ids.to(ppo_trainer.accelerator.device)
+                score = torch.tensor(reward, dtype=torch.float32, device=ppo_trainer.accelerator.device)
+                stats = ppo_trainer.step([q_ids[0]], [a_ids[0]], [score])
+                print(f"[Feedback] user={user}, pred={pred}, truth={truth}, reward={reward:+.0f}")
+
+                step += 1
+                if step % cfg.style_eval_every_n_steps == 0:
+                    accs = {u: (c["correct"] / c["total"] if c["total"] else 0.0) for u, c in style_counts.items()}
+                    print(f"[Eval] Style accuracies: {accs}")
+                    # Append CSV row
+                    os.makedirs(cfg.log_dir, exist_ok=True)
+                    with open(os.path.join(cfg.log_dir, "style_probe.csv"), "a", encoding="utf-8") as f:
+                        f.write(f"{step},{user},{pred},{truth},{reward}\n")
+                # Continue next iteration (skip tutor branch)
                 continue
 
-            # 1) Generate answer A
+            # 1) Generate answer A (tutor mode)
             prompt = format_chat_prompt(q)
             print("\n[Step] Generating answer...")
             t0 = time.time()
