@@ -142,7 +142,7 @@ def format_style_prompt(user_name: str, question: str) -> str:
     return (
         "You are a tutor. Choose the best teaching style for the user.\n"
         "Return ONLY valid JSON with EXACTLY this field and nothing else: "
-        '{"style": "story|example|facts"}.\n'
+        '{"style": "style1|style2|style3"}.\n'
         f"User name: {user_name}. Question: {question}\nJSON:"
     )
 
@@ -156,10 +156,10 @@ def parse_style(json_str: str) -> str | None:
         obj = json.loads(json_str[start : end + 1])
     except Exception:
         return None
-    val = str(obj.get("style", "")).strip().lower()
-    if val in ("story", "stories"): return "story"
-    if val in ("example", "examples"): return "example"
-    if val in ("fact", "facts", "factual"): return "facts"
+    val = str(obj.get("style", "")).strip().lower().replace(" ", "")
+    if val in ("style1", "style01", "s1"): return "style1"
+    if val in ("style2", "style02", "s2"): return "style2"
+    if val in ("style3", "style03", "s3"): return "style3"
     return None
 
 

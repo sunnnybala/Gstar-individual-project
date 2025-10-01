@@ -65,9 +65,9 @@ class TrainConfig:
     )
 
     # Style-probe experiment settings
-    style_labels: tuple = ("style 1", "style 2", "style 3")
+    style_labels: tuple = ("style1", "style2", "style3")
     style_users: tuple = ("John", "Ram", "Lily")
-    style_gt: dict = field(default_factory=lambda: {"John": "style 1", "Ram": "style 2", "Lily": "style 3"})
+    style_gt: dict = field(default_factory=lambda: {"John": "style1", "Ram": "style2", "Lily": "style3"})
     style_eval_every_n_steps: int = 20
 
 
