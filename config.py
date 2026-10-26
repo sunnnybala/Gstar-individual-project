@@ -28,7 +28,7 @@ class TrainConfig:
     max_prompt_tokens: int = 512
 
     # PPO
-    learning_rate: float = 1e-5
+    learning_rate: float = 2e-5
     ppo_epochs: int = 1
     batch_size: int = 1
     target_kl: float = 0.1
